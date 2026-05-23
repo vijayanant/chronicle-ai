@@ -1,0 +1,33 @@
+# Chronicle Configuration
+
+# The root directory containing your Hugo blog posts
+blog_root: "my-blog-site-copy/content/posts"
+
+# Database and data locations
+db_path: "chronicle/data/lancedb"
+table_name: "blog_chunks"
+ledger_path: "chronicle/data/session_ledger.json"
+library_path: "chronicle/data/library/catalog.json"
+constitution_path: "chronicle/data/constitution.md"
+log_path: "chronicle/data/chronicle.log"
+
+# Model Configuration
+provider: "ollama" # choices: ollama, mlx
+embedding_model: "nomic-embed-text"
+reasoning_model: "deepseek-r1:14b"
+
+# Logic Configuration
+constitution_seed_topics: ["Sovereign Web", "Engineering Principles", "Test-Driven Development", "Modular Design"]
+
+# Search Settings
+search_limit: 5
+search_mode: "hybrid" # hybrid, vector, fts
+rrf_k: 60
+
+# Chunking Settings
+chunk_size: 1200
+chunk_overlap: 200
+
+# Audit Settings
+enable_cloud_audit: true
+parallel_audits: 3
