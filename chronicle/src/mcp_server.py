@@ -131,6 +131,16 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["text"],
             },
         ),
+        types.Tool(
+            name="get_link_graph",
+            description="Build the blog's link graph and retrieve topological metrics, orphans, and broken links.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "include_drafts": {"type": "boolean", "description": "Optional: Include draft posts in the graph", "default": False},
+                }
+            }
+        ),
     ]
 
 @server.call_tool()
@@ -213,6 +223,12 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
         dossier = await guardian.council.get_audit_dossier(text, ledger)
         import json
         return [types.TextContent(type="text", text=json.dumps(dossier, indent=2))]
+
+    elif name == "get_link_graph":
+        include_drafts = arguments.get("include_drafts", False) if arguments else False
+        graph_data = api.get_link_graph_api(config, include_drafts=include_drafts)
+        import json
+        return [types.TextContent(type="text", text=json.dumps(graph_data, indent=2))]
 
     raise ValueError(f"Unknown tool: {name}")
 

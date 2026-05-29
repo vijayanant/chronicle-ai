@@ -9,6 +9,7 @@ from .linter import ProseLinter, LintIssue
 from .session_memory import SessionLedger
 from .providers.base import LLMProvider
 from .models import SearchResult, SeriesLedger
+from .graph import BlogGraph
 
 def get_unique_series(config: AppConfig) -> List[str]:
     """Retrieves all unique series tags currently indexed in the database."""
@@ -88,3 +89,19 @@ def record_decision_api(
     """Records a new design decision to the session ledger."""
     ledger = SessionLedger(ledger_path=config.ledger_path)
     ledger.record_decision(topic, decision, rationale, scope=scope, series=series)
+
+def get_link_graph_api(config: AppConfig, include_drafts: bool = False) -> Dict[str, Any]:
+    """Builds the blog link graph and returns the graph nodes, edges, metrics, and skipped targets."""
+    analyzer = BlogGraph(config)
+    g, skipped = analyzer.build_graph(include_drafts=include_drafts)
+    metrics = analyzer.get_metrics()
+    
+    nodes = [{"id": node, "title": g.nodes[node].get("title", node)} for node in g.nodes]
+    edges = [{"source": u, "target": v} for u, v in g.edges]
+    
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "metrics": metrics,
+        "skipped_targets": skipped
+    }

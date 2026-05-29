@@ -92,3 +92,30 @@ async def test_cli_subcommands_lint():
             "draft.md",
             include_drafts=False
         )
+
+@pytest.mark.asyncio
+async def test_cli_subcommands_graph():
+    test_args = ["chronicle", "graph", "--include-drafts"]
+    
+    with patch("sys.argv", test_args), \
+         patch("chronicle.main.load_config", return_value={}), \
+         patch("chronicle.main.setup_logging"), \
+         patch("chronicle.main.LLMProvider.get_provider"), \
+         patch("chronicle.main.api.get_link_graph_api") as mock_graph_api:
+         
+        mock_graph_api.return_value = {
+            "metrics": {
+                "total_posts": 0,
+                "total_links": 0,
+                "density": 0.0,
+                "orphans": []
+            },
+            "skipped_targets": []
+        }
+        
+        await run_main()
+        
+        mock_graph_api.assert_called_once_with(
+            ANY,
+            include_drafts=True
+        )

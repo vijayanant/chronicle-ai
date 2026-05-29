@@ -155,6 +155,9 @@ async def run_main():
     # watch subcommand
     subparsers.add_parser("watch", help="Watch content root for changes")
     
+    # graph subcommand
+    subparsers.add_parser("graph", parents=[common_parser], help="Analyze internal links and print topological graph metrics")
+    
     # mcp subcommand
     subparsers.add_parser("mcp", help="Start the MCP server")
 
@@ -291,6 +294,28 @@ async def run_main():
         print("\n--- Foundational Briefing ---")
         print(brief)
         
+    elif args.command == "graph":
+        print(f"Building link graph for: {config.content_root}...")
+        graph_data = api.get_link_graph_api(config, include_drafts=args.include_drafts)
+        metrics = graph_data["metrics"]
+        
+        print("\n=== CHRONICLE LINK GRAPH STATUS ===")
+        print(f"Total Posts:          {metrics['total_posts']}")
+        print(f"Total Internal Links: {metrics['total_links']}")
+        print(f"Link Density:         {metrics['density']} links/post")
+        
+        if metrics["orphans"]:
+            print(f"\n🚨 ORPHAN POSTS ({len(metrics['orphans'])} post(s) with 0 incoming links):")
+            for o in metrics["orphans"]:
+                print(f"  - {o}")
+        else:
+            print("\n✅ No orphan posts detected. All pages have incoming links.")
+            
+        if graph_data["skipped_targets"]:
+            print(f"\n⚠️ BROKEN INTERNAL LINKS ({len(graph_data['skipped_targets'])}):")
+            for skipped in sorted(list(set(graph_data["skipped_targets"]))):
+                print(f"  - {skipped}")
+                
     elif args.command == "watch":
         from chronicle.src.observer import start_watching
         await start_watching(config.content_root, indexer, guardian)
