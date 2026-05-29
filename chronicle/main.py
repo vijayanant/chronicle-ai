@@ -253,7 +253,7 @@ async def run_main():
             
     elif args.command == "lint":
         from chronicle.src.linter import ProseLinter
-        linter = ProseLinter(content_root=config.content_root)
+        linter = ProseLinter(config)
         print(f"Linting file: {args.file_path}...")
         issues = linter.lint_file(args.file_path)
         if not issues:
