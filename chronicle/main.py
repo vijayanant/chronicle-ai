@@ -177,7 +177,7 @@ async def run_main():
     config.db_path = args.db_path
     setup_logging(log_file=config.log_path)
     
-    provider = LLMProvider.get_provider(config.provider)
+    provider = LLMProvider.get_provider(config.provider, config=config)
     indexer = LibrarianIndexer(config=config, provider=provider)
     
     if args.command == "status":

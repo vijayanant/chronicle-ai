@@ -62,7 +62,7 @@ class LibrarianIndexer:
     def __init__(self, config: AppConfig, provider: Optional[LLMProvider] = None):
         self.config = config
         self.store = VectorStore(config)
-        self.provider = provider or LLMProvider.get_provider(config.provider)
+        self.provider = provider or LLMProvider.get_provider(config.provider, config=config)
         self.resolver = PathResolver(config.content_root)
 
     def check_health(self) -> Dict[str, Any]:

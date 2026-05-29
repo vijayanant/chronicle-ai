@@ -1,13 +1,13 @@
 import os
 import httpx
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .base import LLMProvider
 
 class OpenAIProvider(LLMProvider):
     """OpenAI-compatible provider using httpx to support llama.cpp, local servers, or OpenAI."""
 
-    def __init__(self):
-        self.base_url = os.environ.get("OPENAI_BASE_URL", "http://localhost:8080/v1").rstrip("/")
+    def __init__(self, base_url: Optional[str] = None):
+        self.base_url = (base_url or os.environ.get("OPENAI_BASE_URL", "http://localhost:8080/v1")).rstrip("/")
         self.api_key = os.environ.get("OPENAI_API_KEY", "no-key")
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",

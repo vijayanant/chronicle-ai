@@ -24,7 +24,7 @@ def get_unique_series(config: AppConfig) -> List[str]:
 
 async def get_series_ledger_api(config: AppConfig, series_name: str) -> SeriesLedger:
     """Synthesizes the series ledger (narrative arc and promises) using the reasoning model."""
-    provider = LLMProvider.get_provider(config.provider)
+    provider = LLMProvider.get_provider(config.provider, config=config)
     indexer = LibrarianIndexer(config, provider=provider)
     manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
     return await manager.get_series_ledger(series_name)
@@ -39,7 +39,7 @@ async def search_blog_api(
     per_post_limit: Optional[int] = None
 ) -> List[SearchResult]:
     """Performs a semantic/keyword search across the corpus."""
-    provider = LLMProvider.get_provider(config.provider)
+    provider = LLMProvider.get_provider(config.provider, config=config)
     indexer = LibrarianIndexer(config, provider=provider)
     return await indexer.search(
         query,
@@ -118,7 +118,7 @@ async def suggest_internal_links_api(
 
 async def get_series_handoff_api(config: AppConfig, series_name: str) -> HandoffBrief:
     """Generates a transition handoff brief detailing logical gaps and deep follow-ups for a series."""
-    provider = LLMProvider.get_provider(config.provider)
+    provider = LLMProvider.get_provider(config.provider, config=config)
     indexer = LibrarianIndexer(config, provider=provider)
     manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
     return await manager.generate_handoff_brief(series_name)

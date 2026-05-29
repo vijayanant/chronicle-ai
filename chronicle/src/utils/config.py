@@ -17,6 +17,7 @@ class AppConfig(BaseModel):
     provider: str = Field("ollama")
     embedding_model: str = Field("nomic-embed-text")
     reasoning_model: str = Field("deepseek-r1:14b")
+    openai_base_url: Optional[str] = Field(None)
     
     constitution_seed_topics: List[str] = Field(default_factory=lambda: ["Sovereign Web", "Engineering Principles", "Test-Driven Development", "Modular Design"])
     

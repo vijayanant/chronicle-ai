@@ -1,18 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class LLMProvider(ABC):
     """Abstract interface for LLM providers."""
     
     @staticmethod
-    def get_provider(name: str) -> 'LLMProvider':
+    def get_provider(name: str, config: Optional[Any] = None) -> 'LLMProvider':
         """Factory method to return the requested provider."""
         if name.lower() == "mlx":
             from .mlx import MLXProvider
             return MLXProvider()
         elif name.lower() in ("openai", "llamacpp"):
             from .openai import OpenAIProvider
-            return OpenAIProvider()
+            base_url = getattr(config, "openai_base_url", None)
+            return OpenAIProvider(base_url=base_url)
         else:
             from .ollama import OllamaProvider
             return OllamaProvider()

@@ -9,6 +9,14 @@ def test_factory_mapping():
     assert isinstance(provider_openai, OpenAIProvider)
     assert isinstance(provider_llamacpp, OpenAIProvider)
 
+def test_factory_with_config():
+    class DummyConfig:
+        openai_base_url = "http://custom-url:9999/v1"
+        provider = "openai"
+    config = DummyConfig()
+    provider = LLMProvider.get_provider("openai", config=config)
+    assert provider.base_url == "http://custom-url:9999/v1"
+
 @patch("httpx.Client")
 def test_openai_provider_sync_chat(mock_client_class):
     mock_client = MagicMock()
