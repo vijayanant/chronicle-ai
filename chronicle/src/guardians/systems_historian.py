@@ -1,12 +1,15 @@
+import asyncio
 from .base import BaseGuardian
 from .library import ReferenceLibrary
 from chronicle.src.indexer import LibrarianIndexer
-
 class SystemsHistorian(BaseGuardian):
-    def __init__(self, indexer: LibrarianIndexer, **kwargs):
+    def __init__(self, indexer: LibrarianIndexer, library_path: str | None = None, **kwargs):
         super().__init__(name="historian", **kwargs)
         self.indexer = indexer
-        self.library = ReferenceLibrary()
+        if library_path:
+            self.library = ReferenceLibrary(catalog_path=library_path)
+        else:
+            self.library = ReferenceLibrary()
 
     async def find_historical_context_async(self, concept: str) -> str:
         library_results = self.library.search_library(concept)
@@ -32,7 +35,7 @@ class SystemsHistorian(BaseGuardian):
                 for doc in library_results
             ])
 
-        results = self.indexer.search(concept, limit=3)
+        results = asyncio.run(self.indexer.search(concept, limit=3))
         blog_context = "BLOG HISTORY:\n" + "\n".join([r.chunk.text for r in results])
         
         prompt = f"Analyze the concept: {concept}\n\n{library_context}\n\n{blog_context}\n\nBriefly anchor this concept in historical foundations."

@@ -127,13 +127,13 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
 
     raise ValueError(f"Unknown tool: {name}")
 
-async def main(blog_root: str, db_path: str):
+async def main(content_root: str, db_path: str):
     global indexer, guardian, ledger
     
     # Standard config load
     from .utils.config import AppConfig
     config = AppConfig.from_yaml()
-    config.blog_root = blog_root
+    config.content_root = content_root
     config.db_path = db_path
     
     # Initialize core logic

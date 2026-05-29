@@ -63,13 +63,13 @@ class LibrarianIndexer:
         self.config = config
         self.store = VectorStore(config)
         self.provider = provider or LLMProvider.get_provider(config.provider)
-        self.resolver = PathResolver(config.blog_root)
+        self.resolver = PathResolver(config.content_root)
 
     def check_health(self) -> Dict[str, Any]:
         return {
             "ollama": self.provider.check_health(),
             "database": self.store._table_exists(),
-            "blog_root": os.path.exists(self.config.blog_root)
+            "content_root": os.path.exists(self.config.content_root)
         }
 
     def _calculate_hash(self, text: str) -> str:
@@ -240,13 +240,15 @@ class LibrarianIndexer:
         self.store.create_fts_index()
 
     async def search(self, query: str, limit: Optional[int] = None, mode: Optional[str] = None,
-                     series: Optional[str] = None, published_only: bool = False) -> List[SearchResult]:
+                     series: Optional[str] = None, published_only: bool = False,
+                     per_post_limit: Optional[int] = None) -> List[SearchResult]:
         """Async Search with High-Precision Metadata Filtering."""
         if not self.store._table_exists():
             logger.warning("Search failed: Table does not exist.")
             return []
             
         search_limit = limit or self.config.search_limit
+        active_per_post_limit = per_post_limit if per_post_limit is not None else self.config.per_post_limit
         search_mode = mode or self.config.search_mode
         table = self.store.get_table()
         
@@ -262,15 +264,19 @@ class LibrarianIndexer:
         if search_mode == "fts":
             q = table.search(query)
             if filter_query: q = q.where(filter_query)
-            raw = q.limit(search_limit).to_list()
-            return [self._to_result(r, "fts") for r in raw]
+            db_limit = search_limit * 5 if active_per_post_limit else search_limit
+            raw = q.limit(db_limit).to_list()
+            results = [self._to_result(r, "fts") for r in raw]
+            return self._apply_per_post_limit(results, active_per_post_limit)[:search_limit]
         
         vec = await self._get_embedding(query, is_query=True)
         if search_mode == "vector":
             q = table.search(vec)
             if filter_query: q = q.where(filter_query)
-            raw = q.limit(search_limit).to_list()
-            return [self._to_result(r, "vector") for r in raw]
+            db_limit = search_limit * 5 if active_per_post_limit else search_limit
+            raw = q.limit(db_limit).to_list()
+            results = [self._to_result(r, "vector") for r in raw]
+            return self._apply_per_post_limit(results, active_per_post_limit)[:search_limit]
         
         # Hybrid RRF with Filtering
         try:
@@ -295,13 +301,28 @@ class LibrarianIndexer:
                 docs[key] = d
                 
             sorted_keys = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
-            return [self._to_result(docs[key], "hybrid", scores[key]) for key in sorted_keys[:search_limit]]
+            results = [self._to_result(docs[key], "hybrid", scores[key]) for key in sorted_keys]
+            return self._apply_per_post_limit(results, active_per_post_limit)[:search_limit]
         except Exception as e:
             logger.error(f"Hybrid Fail: {e}")
             q = table.search(vec)
             if filter_query: q = q.where(filter_query)
-            raw = q.limit(search_limit).to_list()
-            return [self._to_result(r, "vector") for r in raw]
+            db_limit = search_limit * 5 if active_per_post_limit else search_limit
+            raw = q.limit(db_limit).to_list()
+            results = [self._to_result(r, "vector") for r in raw]
+            return self._apply_per_post_limit(results, active_per_post_limit)[:search_limit]
+
+    def _apply_per_post_limit(self, results: List[SearchResult], per_post_limit: Optional[int]) -> List[SearchResult]:
+        if not per_post_limit:
+            return results
+        filtered = []
+        counts = {}
+        for r in results:
+            source = r.chunk.source
+            if counts.get(source, 0) < per_post_limit:
+                filtered.append(r)
+                counts[source] = counts.get(source, 0) + 1
+        return filtered
 
     def _to_result(self, raw: Dict[str, Any], mode: str, score: Optional[float] = None) -> SearchResult:
         data = {k: v for k, v in raw.items() if not k.startswith('_') and k != 'vector'}

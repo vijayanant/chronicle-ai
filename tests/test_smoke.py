@@ -31,7 +31,7 @@ async def test_real_lancedb_and_hybrid_search(tmp_path):
     
     db_path = tmp_path / "db"
     config = AppConfig(
-        blog_root=str(blog_root),
+        content_root=str(blog_root),
         db_path=str(db_path),
         search_mode="hybrid"
     )

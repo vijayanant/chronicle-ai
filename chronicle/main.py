@@ -32,6 +32,7 @@ def load_config(config_path: str = None):
 
 def init_workspace():
     """Bootstraps a new Chronicle workspace in the current directory."""
+    import shutil
     base_dir = Path(os.getcwd()) / ".chronicle"
     data_dir = base_dir / "data"
     sop_dir = data_dir / "guardians"
@@ -39,9 +40,15 @@ def init_workspace():
     print(f"Initializing Chronicle workspace at {base_dir}...")
     sop_dir.mkdir(parents=True, exist_ok=True)
     
+    # Copy packaged default playbooks to workspace
+    pkg_sop_dir = Path(__file__).parent / "data" / "guardians"
+    if pkg_sop_dir.exists():
+        for file in pkg_sop_dir.glob("*.md"):
+            shutil.copy(file, sop_dir)
+    
     config_path = base_dir / "config.yaml"
     default_config = {
-        "blog_root": "", 
+        "content_root": "", 
         "db_path": ".chronicle/data/lancedb",
         "ledger_path": ".chronicle/data/session_ledger.json",
         "library_path": ".chronicle/data/library/catalog.json",
@@ -61,7 +68,7 @@ def init_workspace():
     instr_path.write_text("# Expert Instructions\n\nAdd your custom personality and mandates here.")
     
     print("\n✅ Chronicle workspace initialized successfully!")
-    print(f"👉 ACTION REQUIRED: Open {config_path} and set your 'blog_root' path.")
+    print(f"👉 ACTION REQUIRED: Open {config_path} and set your 'content_root' path.")
     print("👉 Then run: chronicle --index")
 
 async def run_audit(guardian, audit_path):
@@ -91,12 +98,13 @@ async def run_main():
     config = AppConfig(**config_data) if config_data else AppConfig()
     
     parser = argparse.ArgumentParser(description="Chronicle AI: The Narrative Linter & Prose CI/CD for Technical Content")
-    parser.add_argument("--blog-root", default=config.blog_root, help="Root directory of blog posts")
+    parser.add_argument("--content-root", default=config.content_root, help="Root directory of blog posts")
     parser.add_argument("--db-path", default=config.db_path, help="Path to LanceDB")
     parser.add_argument("--index", action="store_true", help="Index the blog directory")
     parser.add_argument("--sync", action="store_true", help="Perform a differential sync of the index")
     parser.add_argument("--query", help="Search the index for a concept or phrase")
     parser.add_argument("--limit", type=int, default=config.search_limit, help="Number of search results to return")
+    parser.add_argument("--per-post-limit", type=int, default=config.per_post_limit, help="Max chunks from the same post to return")
     parser.add_argument("--mode", default=config.search_mode, choices=["hybrid", "vector", "fts"], help="Search mode")
     parser.add_argument("--series", help="Name of the series for scoping or filtering")
     parser.add_argument("--published-only", action="store_true", help="Filter for published posts only (ignore drafts)")
@@ -116,7 +124,7 @@ async def run_main():
     parser.add_argument("--init", action="store_true", help="Initialize a new workspace")
     
     args = parser.parse_args()
-    config.blog_root = args.blog_root
+    config.content_root = args.content_root
     config.db_path = args.db_path
     setup_logging(log_file=config.log_path)
     
@@ -153,13 +161,13 @@ async def run_main():
         return
 
     if args.index:
-        print(f"Indexing directory: {config.blog_root}...")
-        await indexer.index_directory(config.blog_root)
+        print(f"Indexing directory: {config.content_root}...")
+        await indexer.index_directory(config.content_root)
         print("Indexing complete.")
         
     if args.sync:
-        print(f"Syncing directory: {config.blog_root}...")
-        await indexer.sync_directory(config.blog_root)
+        print(f"Syncing directory: {config.content_root}...")
+        await indexer.sync_directory(config.content_root)
         print("Sync complete.")
         
     if args.constitution:
@@ -202,20 +210,21 @@ async def run_main():
 
     if args.watch:
         from chronicle.src.observer import start_watching
-        await start_watching(config.blog_root, indexer, guardian)
+        await start_watching(config.content_root, indexer, guardian)
 
     if args.mcp:
         from chronicle.src.mcp_server import main as run_mcp
-        await run_mcp(blog_root=config.blog_root, db_path=config.db_path)
+        await run_mcp(content_root=config.content_root, db_path=config.db_path)
 
     if args.query:
-        print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {args.published_only})...")
+        print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {args.published_only}, per-post-limit: {args.per_post_limit})...")
         results = await indexer.search(
             args.query, 
             limit=args.limit, 
             mode=args.mode, 
             series=args.series, 
-            published_only=args.published_only
+            published_only=args.published_only,
+            per_post_limit=args.per_post_limit
         )
         
         if not results:

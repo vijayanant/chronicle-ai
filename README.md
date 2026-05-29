@@ -31,7 +31,7 @@ Navigate to your Hugo blog root and bootstrap the local intelligence layer:
 chronicle --init
 
 # 2. Configure your blog path
-# Open .chronicle/config.yaml and set your 'blog_root' path.
+# Open .chronicle/config.yaml and set your 'content_root' path.
 
 # 3. Build the initial local index
 chronicle --index

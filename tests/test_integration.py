@@ -20,7 +20,7 @@ async def test_full_drafting_lifecycle(tmp_path):
     const_path.write_text("# Constitution\n- Always use TDD.")
     
     config = AppConfig(
-        blog_root=str(blog_root),
+        content_root=str(blog_root),
         db_path=str(db_path),
         ledger_path=str(ledger_path),
         constitution_path=str(const_path)

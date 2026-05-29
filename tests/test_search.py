@@ -12,7 +12,7 @@ def mock_indexer(tmp_path):
     db_path = str(tmp_path / "db")
     os.makedirs(blog_root)
     
-    config = AppConfig(blog_root=blog_root, db_path=db_path)
+    config = AppConfig(content_root=blog_root, db_path=db_path)
     
     with patch("lancedb.connect") as mock_connect:
         indexer = LibrarianIndexer(config=config)
@@ -78,3 +78,37 @@ async def test_rrf_logic_manual(mock_indexer):
     assert results[0].chunk.title in ["A", "B"]
     assert results[0].mode == "hybrid"
     assert results[0].score > 0.03
+
+
+@pytest.mark.asyncio
+async def test_search_per_post_limit(mock_indexer):
+    mock_indexer.store._table_exists = MagicMock(return_value=True)
+    doc_a1 = {
+        "source": "post_a.md", "content_hash": "hash_a1", "title": "A", "id": "a_1",
+        "text": "text a1", "slug": "a", "chunk_type": "prose", "series": [], "tags": [],
+        "draft": False, "file_hash": "h"
+    }
+    doc_a2 = {
+        "source": "post_a.md", "content_hash": "hash_a2", "title": "A", "id": "a_2",
+        "text": "text a2", "slug": "a", "chunk_type": "prose", "series": [], "tags": [],
+        "draft": False, "file_hash": "h"
+    }
+    doc_b = {
+        "source": "post_b.md", "content_hash": "hash_b", "title": "B", "id": "b_1",
+        "text": "text b", "slug": "b", "chunk_type": "prose", "series": [], "tags": [],
+        "draft": False, "file_hash": "h"
+    }
+
+    db_results = [doc_a1, doc_a2, doc_b]
+
+    table = MagicMock()
+    mock_indexer.store.get_table = MagicMock(return_value=table)
+    table.search.return_value.limit.return_value.to_list.return_value = db_results
+
+    # Search with per_post_limit=1
+    results = await mock_indexer.search("test query", limit=5, mode="vector", per_post_limit=1)
+
+    # We expect only the first chunk of post_a and the chunk of post_b
+    assert len(results) == 2
+    assert results[0].chunk.source == "post_a.md"
+    assert results[1].chunk.source == "post_b.md"

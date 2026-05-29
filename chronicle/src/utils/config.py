@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class AppConfig(BaseModel):
     """Centralized configuration model for Chronicle."""
-    blog_root: str = Field("")
+    content_root: str = Field("")
     db_path: str = Field(".chronicle/data/lancedb")
     table_name: str = Field("blog_chunks")
     ledger_path: str = Field(".chronicle/data/session_ledger.json")
@@ -22,6 +22,7 @@ class AppConfig(BaseModel):
     
     search_limit: int = Field(5)
     search_mode: str = Field("hybrid")
+    per_post_limit: Optional[int] = Field(None)
     rrf_k: int = Field(60)
     
     chunk_size: int = Field(1200)

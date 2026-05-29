@@ -1,7 +1,7 @@
 # Chronicle Configuration
 
 # The root directory containing your Hugo blog posts
-blog_root: "my-blog-site-copy/content/posts"
+content_root: "my-blog-site-copy/content/posts"
 
 # Database and data locations
 db_path: "chronicle/data/lancedb"

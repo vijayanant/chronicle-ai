@@ -25,7 +25,7 @@ class Council:
             "sop_dir": sop_dir
         }
         
-        self.historian = SystemsHistorian(indexer, **guardian_kwargs)
+        self.historian = SystemsHistorian(indexer, library_path=config.library_path, **guardian_kwargs)
         self.explorer = SovereignExplorer(**guardian_kwargs)
         self.craftsman = MasterCraftsman(**guardian_kwargs)
         self.strategist = PragmaticStrategist(**guardian_kwargs)

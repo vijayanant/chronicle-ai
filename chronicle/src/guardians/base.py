@@ -8,7 +8,7 @@ from ..providers.ollama import OllamaProvider
 class BaseGuardian(ABC):
     """Abstract base class for all Council Guardians with external SOP support."""
     
-    def __init__(self, name: str, provider: LLMProvider = None, model_name: str = "deepseek-r1:14b", sop_dir: str = "chronicle/data/guardians"):
+    def __init__(self, name: str, provider: LLMProvider = None, model_name: str = "deepseek-r1:14b", sop_dir: str = ".chronicle/data/guardians"):
         self.name = name
         self.provider = provider or OllamaProvider()
         self.model_name = model_name

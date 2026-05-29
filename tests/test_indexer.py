@@ -5,7 +5,7 @@ from chronicle.src.utils.config import AppConfig
 
 @pytest.fixture
 def indexer_with_config():
-    config = AppConfig(blog_root="/tmp")
+    config = AppConfig(content_root="/tmp")
     return LibrarianIndexer(config=config)
 
 def test_chunk_markdown_logic():

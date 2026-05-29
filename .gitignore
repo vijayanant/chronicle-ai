@@ -159,3 +159,10 @@ data/session_ledger.json
 data/constitution.md
 data/library/catalog.json
 config.yaml
+
+# Packaged runtime data (ignores local test outputs and build artifacts)
+chronicle/data/lancedb/
+chronicle/data/chronicle.log
+chronicle/data/session_ledger.json
+chronicle/data/constitution.md
+chronicle/data/library/catalog.json
