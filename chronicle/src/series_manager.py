@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 from chronicle.src.indexer import LibrarianIndexer
-from chronicle.src.models import SeriesLedger, NarrativePromise
+from chronicle.src.models import SeriesLedger, NarrativePromise, HandoffBrief, FollowUpSuggestion
 from chronicle.src.providers.base import LLMProvider
 from datetime import datetime
 import json
@@ -98,6 +98,97 @@ class SeriesManager:
             summary=summary_text,
             open_promises=promises
         )
+
+    async def generate_handoff_brief(self, series_name: str) -> HandoffBrief:
+        """
+        Analyzes the progression of a series, identifies logical/architectural gaps,
+        and recommends deep, significant follow-up topics to write next.
+        """
+        table = self.indexer.store.get_table()
+        series_chunks = table.search().where(f"array_contains(series, '{series_name}')").to_list()
+        
+        if not series_chunks:
+            raise ValueError(f"No posts found for series: {series_name}")
+            
+        # Group chunks by post title and date to sort chronologically
+        posts_data = {}
+        for c in series_chunks:
+            title = c['title']
+            date = c.get('date') or datetime.min
+            text = c['text']
+            if title not in posts_data:
+                posts_data[title] = {"date": date, "chunks": []}
+            posts_data[title]["chunks"].append(text)
+            
+        sorted_posts = sorted(posts_data.keys(), key=lambda x: posts_data[x]["date"])
+        last_post_title = sorted_posts[-1] if sorted_posts else "Unknown"
+        
+        # Build the series progression overview
+        progression_lines = []
+        for i, title in enumerate(sorted_posts, 1):
+            content_summary = " ".join(posts_data[title]["chunks"][:3]) # First few chunks
+            progression_lines.append(f"Post {i}: '{title}'\nContent Abstract: {content_summary[:300]}...")
+        
+        progression_text = "\n\n".join(progression_lines)
+        
+        prompt = f"""
+        You are 'The Cartographer' and 'The Adversarial Peer'. 
+        Analyze the progression of ideas in the '{series_name}' series.
+        
+        SERIES PROGRESSION:
+        {progression_text}
+        
+        MANDATE:
+        1. Identify Logical Gaps: What technical vulnerabilities, unaddressed trade-offs, or conceptual holes have been created by the progression but not resolved?
+        2. Suggest 2 Deep Follow-up Articles: Propose the next logical articles that should be written. For each, provide:
+           - Title: A compelling technical title.
+           - Rationale: Why this is logically and architecturally the next step.
+           - Transition Hook: Suggested opening sentences to link it from the last post ('{last_post_title}').
+           
+        Output ONLY a JSON object of this shape:
+        {{
+          "logical_gaps": ["gap 1 description", "gap 2 description"],
+          "follow_ups": [
+            {{"title": "Compelling Title", "rationale": "Why...", "transition_hook": "How to start..."}}
+          ]
+        }}
+        """
+        
+        response = await self.provider.chat_async(
+            model_name=self.model_name,
+            messages=[
+                {"role": "system", "content": "You are a precise technical editor and architect. Output ONLY valid JSON."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        try:
+            clean_content = response
+            if "</think>" in clean_content:
+                clean_content = clean_content.split("</think>")[-1].strip()
+            
+            # Strip potential markdown block formatting
+            clean_content = clean_content.strip().lstrip("```json").rstrip("```").strip()
+            
+            data = json.loads(clean_content)
+            gaps = data.get("logical_gaps", [])
+            follow_ups_raw = data.get("follow_ups", [])
+            
+            follow_ups = [FollowUpSuggestion(**f) for f in follow_ups_raw]
+            return HandoffBrief(
+                series_name=series_name,
+                last_post_title=last_post_title,
+                logical_gaps=gaps,
+                follow_ups=follow_ups
+            )
+        except Exception as e:
+            logger.error(f"Error parsing handoff JSON: {e}. Raw response: {response}")
+            return HandoffBrief(
+                series_name=series_name,
+                last_post_title=last_post_title,
+                logical_gaps=["Error analyzing series progression gaps."],
+                follow_ups=[]
+            )
 
 if __name__ == "__main__":
     import asyncio

@@ -163,6 +163,10 @@ async def run_main():
     suggest_links_parser.add_argument("file_path", help="Path to the draft file to analyze")
     suggest_links_parser.add_argument("--limit", type=int, default=5, help="Maximum number of link suggestions to return")
     
+    # handoff subcommand
+    handoff_parser = subparsers.add_parser("handoff", help="Analyze series progression gaps and suggest logical follow-up topics")
+    handoff_parser.add_argument("series_name", help="The name of the series to analyze")
+    
     # mcp subcommand
     subparsers.add_parser("mcp", help="Start the MCP server")
 
@@ -335,6 +339,31 @@ async def run_main():
                     print(f"   Context: \"...{r['snippet'].strip()}...\"")
         except Exception as e:
             print(f"Error suggesting links: {e}")
+            
+    elif args.command == "handoff":
+        print(f"Analyzing progression of series '{args.series_name}' for logical gaps and follow-ups...")
+        try:
+            brief = await api.get_series_handoff_api(config, args.series_name)
+            print(f"\n=== CHRONICLE SERIES HANDOFF: {brief.series_name} ===")
+            print(f"Last Post: {brief.last_post_title}")
+            
+            if brief.logical_gaps:
+                print("\n🚨 IDENTIFIED LOGICAL GAPS & UNADDRESSED TRADE-OFFS:")
+                for gap in brief.logical_gaps:
+                    print(f"  - {gap}")
+            else:
+                print("\n✅ No logical gaps identified in the progression.")
+                
+            if brief.follow_ups:
+                print("\n💡 SUGGESTED DEEP FOLLOW-UP ARTICLES:")
+                for i, f in enumerate(brief.follow_ups, 1):
+                    print(f"\n{i}. Topic: {f.title}")
+                    print(f"   Why:   {f.rationale}")
+                    print(f"   Hook:  \"{f.transition_hook}\"")
+            else:
+                print("\n❌ No follow-up recommendations could be generated.")
+        except Exception as e:
+            print(f"Error generating handoff brief: {e}")
             
     elif args.command == "watch":
         from chronicle.src.observer import start_watching

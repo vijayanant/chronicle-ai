@@ -153,6 +153,17 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["file_path"]
             }
         ),
+        types.Tool(
+            name="get_series_handoff",
+            description="Analyze series progression logic gaps and suggest deep, significant follow-up topics to write next.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "series_name": {"type": "string", "description": "The name of the series to analyze"}
+                },
+                "required": ["series_name"]
+            }
+        ),
     ]
 
 @server.call_tool()
@@ -248,6 +259,11 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
         recommendations = await api.suggest_internal_links_api(config, file_path, limit=limit)
         import json
         return [types.TextContent(type="text", text=json.dumps(recommendations, indent=2))]
+
+    elif name == "get_series_handoff":
+        series_name = arguments.get("series_name")
+        brief = await api.get_series_handoff_api(config, series_name)
+        return [types.TextContent(type="text", text=brief.model_dump_json(indent=2))]
 
     raise ValueError(f"Unknown tool: {name}")
 

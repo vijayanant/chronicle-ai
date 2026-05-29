@@ -40,3 +40,16 @@ class SeriesLedger(BaseModel):
     summary: str
     key_logic_invariants: List[str] = Field(default_factory=list, description="Core technical rules established in this series")
     open_promises: List[NarrativePromise] = Field(default_factory=list, description="Commitments to future content")
+
+class FollowUpSuggestion(BaseModel):
+    """Proposes a deep technical follow-up post based on series analysis."""
+    title: str = Field(..., description="Compelling technical title for the follow-up post")
+    rationale: str = Field(..., description="Why this topic is architecturally and logically the next step")
+    transition_hook: str = Field(..., description="Suggested opening hook or transition sentences")
+
+class HandoffBrief(BaseModel):
+    """Synthesizes logic gaps and next steps for continuing a content series."""
+    series_name: str
+    last_post_title: str
+    logical_gaps: List[str] = Field(default_factory=list, description="Unaddressed trade-offs or conceptual holes")
+    follow_ups: List[FollowUpSuggestion] = Field(default_factory=list, description="Proposed deep follow-up articles")

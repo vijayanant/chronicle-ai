@@ -135,3 +135,21 @@ async def test_cli_subcommands_suggest_links():
         await run_main()
         
         mock_suggest_api.assert_called_once_with(ANY, "draft.md", limit=3)
+
+@pytest.mark.asyncio
+async def test_cli_subcommands_handoff():
+    test_args = ["chronicle", "handoff", "Akshara"]
+    
+    with patch("sys.argv", test_args), \
+         patch("chronicle.main.load_config", return_value={}), \
+         patch("chronicle.main.setup_logging"), \
+         patch("chronicle.main.LLMProvider.get_provider"), \
+         patch("chronicle.main.api.get_series_handoff_api", new_callable=AsyncMock) as mock_handoff_api:
+         
+        mock_handoff_api.return_value = MagicMock(
+            series_name="Akshara", last_post_title="Post 2", logical_gaps=[], follow_ups=[]
+        )
+        
+        await run_main()
+        
+        mock_handoff_api.assert_called_once_with(ANY, "Akshara")

@@ -8,7 +8,7 @@ from .series_manager import SeriesManager
 from .linter import ProseLinter, LintIssue
 from .session_memory import SessionLedger
 from .providers.base import LLMProvider
-from .models import SearchResult, SeriesLedger
+from .models import SearchResult, SeriesLedger, HandoffBrief
 from .graph import BlogGraph
 from .recommender import LinkRecommender
 
@@ -115,3 +115,10 @@ async def suggest_internal_links_api(
     """Suggests internal links for a targeted draft file based on semantic search."""
     recommender = LinkRecommender(config, LibrarianIndexer(config))
     return await recommender.recommend_links(file_path, limit=limit)
+
+async def get_series_handoff_api(config: AppConfig, series_name: str) -> HandoffBrief:
+    """Generates a transition handoff brief detailing logical gaps and deep follow-ups for a series."""
+    provider = LLMProvider.get_provider(config.provider)
+    indexer = LibrarianIndexer(config, provider=provider)
+    manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
+    return await manager.generate_handoff_brief(series_name)
