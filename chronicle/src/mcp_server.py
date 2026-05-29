@@ -141,6 +141,18 @@ async def handle_list_tools() -> List[types.Tool]:
                 }
             }
         ),
+        types.Tool(
+            name="suggest_internal_links",
+            description="Suggest semantically relevant internal posts to link to from a targeted draft file.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "The file path of the draft to analyze"},
+                    "limit": {"type": "integer", "description": "Optional: Max recommendations to return", "default": 5}
+                },
+                "required": ["file_path"]
+            }
+        ),
     ]
 
 @server.call_tool()
@@ -229,6 +241,13 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
         graph_data = api.get_link_graph_api(config, include_drafts=include_drafts)
         import json
         return [types.TextContent(type="text", text=json.dumps(graph_data, indent=2))]
+
+    elif name == "suggest_internal_links":
+        file_path = arguments.get("file_path")
+        limit = int(arguments.get("limit", 5))
+        recommendations = await api.suggest_internal_links_api(config, file_path, limit=limit)
+        import json
+        return [types.TextContent(type="text", text=json.dumps(recommendations, indent=2))]
 
     raise ValueError(f"Unknown tool: {name}")
 

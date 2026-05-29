@@ -158,6 +158,11 @@ async def run_main():
     # graph subcommand
     subparsers.add_parser("graph", parents=[common_parser], help="Analyze internal links and print topological graph metrics")
     
+    # suggest-links subcommand
+    suggest_links_parser = subparsers.add_parser("suggest-links", help="Suggest internal links for a targeted draft file based on semantic search")
+    suggest_links_parser.add_argument("file_path", help="Path to the draft file to analyze")
+    suggest_links_parser.add_argument("--limit", type=int, default=5, help="Maximum number of link suggestions to return")
+    
     # mcp subcommand
     subparsers.add_parser("mcp", help="Start the MCP server")
 
@@ -316,6 +321,21 @@ async def run_main():
             for skipped in sorted(list(set(graph_data["skipped_targets"]))):
                 print(f"  - {skipped}")
                 
+    elif args.command == "suggest-links":
+        print(f"Analyzing draft '{args.file_path}' for link recommendations...")
+        try:
+            recommendations = await api.suggest_internal_links_api(config, args.file_path, limit=args.limit)
+            if not recommendations:
+                print("\n✅ No link recommendations found or file is already well-linked.")
+            else:
+                print(f"\n💡 Found {len(recommendations)} recommended internal link(s) to add:")
+                for r in recommendations:
+                    print(f"\n🔗 {r['title']} ({r['file']})")
+                    print(f"   Similarity: {r['similarity_score']}")
+                    print(f"   Context: \"...{r['snippet'].strip()}...\"")
+        except Exception as e:
+            print(f"Error suggesting links: {e}")
+            
     elif args.command == "watch":
         from chronicle.src.observer import start_watching
         await start_watching(config.content_root, indexer, guardian)

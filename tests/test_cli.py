@@ -119,3 +119,19 @@ async def test_cli_subcommands_graph():
             ANY,
             include_drafts=True
         )
+
+@pytest.mark.asyncio
+async def test_cli_subcommands_suggest_links():
+    test_args = ["chronicle", "suggest-links", "draft.md", "--limit", "3"]
+    
+    with patch("sys.argv", test_args), \
+         patch("chronicle.main.load_config", return_value={}), \
+         patch("chronicle.main.setup_logging"), \
+         patch("chronicle.main.LLMProvider.get_provider"), \
+         patch("chronicle.main.api.suggest_internal_links_api", new_callable=AsyncMock) as mock_suggest_api:
+         
+        mock_suggest_api.return_value = []
+        
+        await run_main()
+        
+        mock_suggest_api.assert_called_once_with(ANY, "draft.md", limit=3)

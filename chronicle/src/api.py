@@ -10,6 +10,7 @@ from .session_memory import SessionLedger
 from .providers.base import LLMProvider
 from .models import SearchResult, SeriesLedger
 from .graph import BlogGraph
+from .recommender import LinkRecommender
 
 def get_unique_series(config: AppConfig) -> List[str]:
     """Retrieves all unique series tags currently indexed in the database."""
@@ -105,3 +106,12 @@ def get_link_graph_api(config: AppConfig, include_drafts: bool = False) -> Dict[
         "metrics": metrics,
         "skipped_targets": skipped
     }
+
+async def suggest_internal_links_api(
+    config: AppConfig,
+    file_path: str,
+    limit: int = 5
+) -> List[Dict[str, Any]]:
+    """Suggests internal links for a targeted draft file based on semantic search."""
+    recommender = LinkRecommender(config, LibrarianIndexer(config))
+    return await recommender.recommend_links(file_path, limit=limit)
