@@ -101,6 +101,10 @@ async def run_main():
     
     subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommand to run")
     
+    # Common parent parser for options shared across multiple subcommands
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--include-drafts", action="store_true", help="Include draft posts in the command scope")
+    
     # status subcommand
     subparsers.add_parser("status", help="Check the health of Chronicle components")
     
@@ -109,13 +113,12 @@ async def run_main():
     index_parser.add_argument("--rebuild", action="store_true", help="Perform a full rebuild instead of a sync")
     
     # search subcommand
-    search_parser = subparsers.add_parser("search", help="Search the index for a concept or phrase")
+    search_parser = subparsers.add_parser("search", parents=[common_parser], help="Search the index for a concept or phrase")
     search_parser.add_argument("query", help="Query string")
     search_parser.add_argument("--limit", type=int, default=config.search_limit, help="Number of search results to return")
     search_parser.add_argument("--per-post-limit", type=int, default=config.per_post_limit, help="Max chunks from the same post to return")
     search_parser.add_argument("--mode", default=config.search_mode, choices=["hybrid", "vector", "fts"], help="Search mode")
     search_parser.add_argument("--series", help="Name of the series for scoping or filtering")
-    search_parser.add_argument("--published-only", action="store_true", help="Filter for published posts only")
 
     # ledger subcommand group
     ledger_parser = subparsers.add_parser("ledger", help="Manage design decisions and narrative promises")
@@ -133,8 +136,8 @@ async def run_main():
     record_parser.add_argument("--series", help="Filter by series name")
 
     # lint subcommand
-    lint_parser = subparsers.add_parser("lint", help="Perform deterministic syntax and link checks on a draft")
-    lint_parser.add_argument("file_path", help="Path to draft file to lint")
+    lint_parser = subparsers.add_parser("lint", parents=[common_parser], help="Perform deterministic syntax and link checks on a draft or directory")
+    lint_parser.add_argument("file_path", nargs="?", default=None, help="Path to draft file or directory to lint")
 
     # audit subcommand
     audit_parser = subparsers.add_parser("audit", help="Audit a draft file")
@@ -192,13 +195,14 @@ async def run_main():
             print("Sync complete.")
             
     elif args.command == "search":
-        print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {args.published_only}, per-post-limit: {args.per_post_limit})...")
+        published_only = not args.include_drafts
+        print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {published_only}, per-post-limit: {args.per_post_limit})...")
         results = await indexer.search(
             args.query, 
             limit=args.limit, 
             mode=args.mode, 
             series=args.series, 
-            published_only=args.published_only,
+            published_only=published_only,
             per_post_limit=args.per_post_limit
         )
         if not results:
@@ -254,18 +258,49 @@ async def run_main():
     elif args.command == "lint":
         from chronicle.src.linter import ProseLinter
         linter = ProseLinter(config)
-        print(f"Linting file: {args.file_path}...")
-        issues = linter.lint_file(args.file_path)
-        if not issues:
-            print("✅ Prose Lint PASS: No issues found.")
+        
+        path_to_lint = args.file_path or config.content_root
+        if not path_to_lint:
+            print("Error: No file or directory specified to lint, and 'content_root' is not configured.")
+            sys.exit(1)
+            
+        path_to_lint = Path(path_to_lint).resolve()
+        if not path_to_lint.exists():
+            print(f"Error: Path does not exist: {path_to_lint}")
+            sys.exit(1)
+
+        is_single_file = path_to_lint.is_file()
+        if is_single_file:
+            files_to_lint = [path_to_lint]
         else:
-            errors = [i for i in issues if i.severity == "ERROR"]
-            warnings = [i for i in issues if i.severity == "WARNING"]
-            print(f"\n🚨 Prose Lint FAILED: Found {len(errors)} error(s) and {len(warnings)} warning(s):")
-            for i in issues:
-                line_str = f"Line {i.line}: " if i.line else ""
-                print(f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}")
-            if errors:
+            files_to_lint = sorted([p for p in path_to_lint.glob("**/*.md") if p.name != "_index.md"])
+
+        print(f"Linting {len(files_to_lint)} file(s) under {os.path.relpath(path_to_lint, os.getcwd())}...")
+        
+        all_issues = {}
+        total_errors = 0
+        total_warnings = 0
+        
+        for p in files_to_lint:
+            # Always lint the file if it was explicitly specified; otherwise obey the --include-drafts flag
+            include_drafts_for_file = True if is_single_file else args.include_drafts
+            issues = linter.lint_file(str(p), include_drafts=include_drafts_for_file)
+            if issues:
+                all_issues[str(p)] = issues
+                total_errors += sum(1 for i in issues if i.severity == "ERROR")
+                total_warnings += sum(1 for i in issues if i.severity == "WARNING")
+
+        if not all_issues:
+            print(f"✅ Prose Lint PASS: All checked files are compliant.")
+        else:
+            print(f"\n🚨 Prose Lint FAILED: Found {total_errors} error(s) and {total_warnings} warning(s) across {len(all_issues)} file(s):")
+            for filepath, issues in all_issues.items():
+                rel_path = os.path.relpath(filepath, os.getcwd())
+                print(f"\n{rel_path}:")
+                for i in issues:
+                    line_str = f"Line {i.line}: " if i.line else ""
+                    print(f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}")
+            if total_errors > 0:
                 sys.exit(1)
             
     elif args.command == "constitution":

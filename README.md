@@ -34,10 +34,10 @@ chronicle --init
 # Open .chronicle/config.yaml and set your 'content_root' path.
 
 # 3. Build the initial local index
-chronicle --index
+chronicle index
 
 # 4. Verify everything is ready
-chronicle --status
+chronicle status
 ```
 
 ---
@@ -72,13 +72,21 @@ Chronicle AI is designed for manual, proactive invocation by the author to verif
 
 | Command | Purpose |
 | :--- | :--- |
-| `chronicle --audit file.md` | Deep local audit of a technical draft against your Constitution. |
-| `chronicle --query "term"` | Search history with conceptual and keyword matching to verify past definitions. |
-| `chronicle --series "Name"` | Filter search results to a specific series. |
-| `chronicle --series "Name" --series-ledger` | Generate a narrative summary and track promises for a series. |
-| `chronicle --history "concept"`| Retrieve your historical, first-principles definition of a concept. |
-| `chronicle --record topic choice why` | Manually log a new design decision to the ledger. |
-| `chronicle --status` | Check the health of local components. |
+| `chronicle status` | Check the health of local components (Ollama, database, constitution). |
+| `chronicle index [--rebuild]` | Build or sync the local document index differentially. |
+| `chronicle search "query"` | Search history with hybrid vector and keyword matching (defaults to published posts). |
+| `chronicle search "query" --include-drafts` | Search both published and draft posts. |
+| `chronicle search "query" --series "Name"` | Filter search results to a specific series. |
+| `chronicle search "query" --per-post-limit N` | Limit chunk density returned from a single post. |
+| `chronicle ledger show` | Display recent design decisions from the ledger. |
+| `chronicle ledger show --promises-only --series "Name"` | Synthesize narrative promises for a specific series. |
+| `chronicle ledger record <topic> <decision> <rationale>` | Record a design decision to the ledger. |
+| `chronicle audit <file>` | Deep local audit of a technical draft against your Constitution. |
+| `chronicle lint [file_path]` | Run deterministic metadata checks on a file or directory (defaults to content_root, published posts only). |
+| `chronicle lint [file_path] --include-drafts` | Lint both published and draft posts. |
+| `chronicle history "concept"`| Retrieve historical, first-principles definition of a concept. |
+| `chronicle watch` | Watch the content root for real-time automatic re-indexing. |
+| `chronicle mcp` | Start the Model Context Protocol (MCP) server for IDE integration. |
 
 ---
 
