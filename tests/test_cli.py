@@ -48,3 +48,24 @@ async def test_cli_subcommands_ledger_record():
         mock_ledger.record_decision.assert_called_once_with(
             "Topic", "Decision", "Rationale", scope="global", series=None
         )
+
+
+@pytest.mark.asyncio
+async def test_cli_subcommands_lint():
+    test_args = ["chronicle", "lint", "draft.md"]
+    
+    with patch("sys.argv", test_args), \
+         patch("chronicle.main.load_config", return_value={}), \
+         patch("chronicle.main.setup_logging"), \
+         patch("chronicle.main.LLMProvider.get_provider") as mock_provider, \
+         patch("chronicle.main.LibrarianIndexer") as mock_indexer_cls, \
+         patch("chronicle.src.linter.ProseLinter") as mock_linter_cls:
+         
+        mock_indexer = mock_indexer_cls.return_value
+        mock_indexer.check_health.return_value = {"ollama": True}
+        mock_linter = mock_linter_cls.return_value
+        mock_linter.lint_file.return_value = []
+        
+        await run_main()
+        
+        mock_linter.lint_file.assert_called_once_with("draft.md")

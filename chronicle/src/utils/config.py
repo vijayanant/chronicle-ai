@@ -24,6 +24,8 @@ class AppConfig(BaseModel):
     search_mode: str = Field("hybrid")
     per_post_limit: Optional[int] = Field(None)
     rrf_k: int = Field(60)
+    required_frontmatter_fields: List[str] = Field(default_factory=lambda: ["title"])
+    frontmatter_field_types: Dict[str, str] = Field(default_factory=lambda: {"draft": "bool"})
     
     chunk_size: int = Field(1200)
     chunk_overlap: int = Field(200)

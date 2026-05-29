@@ -132,6 +132,10 @@ async def run_main():
     record_parser.add_argument("--scope", default="post", choices=["global", "series", "post"], help="Scope of the decision")
     record_parser.add_argument("--series", help="Filter by series name")
 
+    # lint subcommand
+    lint_parser = subparsers.add_parser("lint", help="Perform deterministic syntax and link checks on a draft")
+    lint_parser.add_argument("file_path", help="Path to draft file to lint")
+
     # audit subcommand
     audit_parser = subparsers.add_parser("audit", help="Audit a draft file")
     audit_parser.add_argument("file_path", help="Path to draft file to audit")
@@ -246,6 +250,23 @@ async def run_main():
             print(json.dumps(dossier, indent=2))
         else:
             await run_audit(guardian, args.file_path)
+            
+    elif args.command == "lint":
+        from chronicle.src.linter import ProseLinter
+        linter = ProseLinter(content_root=config.content_root)
+        print(f"Linting file: {args.file_path}...")
+        issues = linter.lint_file(args.file_path)
+        if not issues:
+            print("✅ Prose Lint PASS: No issues found.")
+        else:
+            errors = [i for i in issues if i.severity == "ERROR"]
+            warnings = [i for i in issues if i.severity == "WARNING"]
+            print(f"\n🚨 Prose Lint FAILED: Found {len(errors)} error(s) and {len(warnings)} warning(s):")
+            for i in issues:
+                line_str = f"Line {i.line}: " if i.line else ""
+                print(f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}")
+            if errors:
+                sys.exit(1)
             
     elif args.command == "constitution":
         await guardian.generate_initial_constitution()
