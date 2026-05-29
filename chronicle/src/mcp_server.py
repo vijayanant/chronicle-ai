@@ -8,6 +8,8 @@ import mcp.server.stdio
 from .indexer import LibrarianIndexer
 from .guardian import GuardianAgent
 from .session_memory import SessionLedger
+from .utils.config import AppConfig
+from . import api
 
 # Initialize the MCP Server
 server = Server("chronicle")
@@ -16,6 +18,7 @@ server = Server("chronicle")
 indexer: Optional[LibrarianIndexer] = None
 guardian: Optional[GuardianAgent] = None
 ledger: Optional[SessionLedger] = None
+config: Optional[AppConfig] = None
 
 @server.list_resources()
 async def handle_list_resources() -> List[types.Resource]:
@@ -49,10 +52,51 @@ async def handle_list_tools() -> List[types.Tool]:
                     "query": {"type": "string", "description": "The search term or phrase"},
                     "limit": {"type": "number", "description": "Number of results to return", "default": 3},
                     "series": {"type": "string", "description": "Optional: Filter results to a specific series name"},
-                    "published_only": {"type": "boolean", "description": "Optional: Filter for only published posts (ignore drafts)", "default": False},
+                    "include_drafts": {"type": "boolean", "description": "Optional: Include draft posts in search", "default": False},
                 },
                 "required": ["query"],
             },
+        ),
+        types.Tool(
+            name="list_series",
+            description="List all unique series tags currently indexed in the blog.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        types.Tool(
+            name="get_series_ledger",
+            description="Synthesize the ledger (narrative arc and open promises) for a series.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "series_name": {"type": "string", "description": "The name of the series to summarize"},
+                },
+                "required": ["series_name"],
+            }
+        ),
+        types.Tool(
+            name="lint_files",
+            description="Run metadata schema linting checks on a targeted file or directory.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "target_path": {"type": "string", "description": "The file or directory path to check"},
+                    "include_drafts": {"type": "boolean", "description": "Whether to include drafts in directory checks", "default": False},
+                },
+                "required": ["target_path"],
+            }
+        ),
+        types.Tool(
+            name="get_decisions",
+            description="Retrieve recorded engineering design decisions from the ledger.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "series": {"type": "string", "description": "Optional series name to filter decisions"}
+                }
+            }
         ),
         types.Tool(
             name="audit_draft",
@@ -96,15 +140,60 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
         query = arguments.get("query")
         limit = int(arguments.get("limit", 3))
         series = arguments.get("series")
-        published_only = arguments.get("published_only", False)
+        include_drafts = arguments.get("include_drafts", False)
         
-        results = await indexer.search(query, limit=limit, series=series, published_only=published_only)
+        results = await api.search_blog_api(
+            config, query, limit=limit, series=series, include_drafts=include_drafts
+        )
         
         output = []
         for r in results:
             text = f"Title: {r.chunk.title}\nSource: {r.chunk.source}\nSnippet: {r.chunk.text}\n"
             output.append(types.TextContent(type="text", text=text))
         return output
+
+    elif name == "list_series":
+        series_list = api.get_unique_series(config)
+        import json
+        return [types.TextContent(type="text", text=json.dumps(series_list, indent=2))]
+
+    elif name == "get_series_ledger":
+        series_name = arguments.get("series_name")
+        ledger = await api.get_series_ledger_api(config, series_name)
+        
+        report = f"SERIES: {ledger.series_name}\n"
+        report += f"POSTS COUNT: {ledger.posts_count}\n"
+        report += f"SUMMARY:\n{ledger.summary}\n"
+        report += "\nOPEN PROMISES:\n"
+        for p in ledger.open_promises:
+            report += f"- From '{p.source_post}': {p.promise_text} (Topic: {p.topic})\n"
+        return [types.TextContent(type="text", text=report)]
+
+    elif name == "lint_files":
+        target_path = arguments.get("target_path")
+        include_drafts = arguments.get("include_drafts", False)
+        
+        try:
+            lint_results = api.lint_files_api(config, target_path, include_drafts=include_drafts)
+            
+            # Format report
+            if not lint_results:
+                report = "✅ Prose Lint PASS: No issues found."
+            else:
+                report = "🚨 Prose Lint FAILED:\n"
+                for filepath, issues in lint_results.items():
+                    report += f"\n{filepath}:\n"
+                    for i in issues:
+                        line_str = f"Line {i.line}: " if i.line else ""
+                        report += f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}\n"
+            return [types.TextContent(type="text", text=report)]
+        except Exception as e:
+            return [types.TextContent(type="text", text=f"Error: {e}")]
+
+    elif name == "get_decisions":
+        series = arguments.get("series")
+        decisions = api.get_decisions_api(config, series=series)
+        return [types.TextContent(type="text", text=decisions)]
 
     elif name == "audit_draft":
         text = arguments.get("text")
@@ -128,10 +217,9 @@ async def handle_call_tool(name: str, arguments: dict | None) -> List[types.Cont
     raise ValueError(f"Unknown tool: {name}")
 
 async def main(content_root: str, db_path: str):
-    global indexer, guardian, ledger
+    global indexer, guardian, ledger, config
     
     # Standard config load
-    from .utils.config import AppConfig
     config = AppConfig.from_yaml()
     config.content_root = content_root
     config.db_path = db_path

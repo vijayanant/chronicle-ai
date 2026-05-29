@@ -1,6 +1,6 @@
 import pytest
 import sys
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock, AsyncMock, ANY
 from chronicle.main import run_main
 
 @pytest.mark.asyncio
@@ -11,20 +11,19 @@ async def test_cli_subcommands_search():
          patch("chronicle.main.load_config", return_value={}), \
          patch("chronicle.main.setup_logging"), \
          patch("chronicle.main.LLMProvider.get_provider") as mock_provider, \
-         patch("chronicle.main.LibrarianIndexer") as mock_indexer_cls:
+         patch("chronicle.main.api.search_blog_api", new_callable=AsyncMock) as mock_search_api:
         
-        mock_indexer = mock_indexer_cls.return_value
-        mock_indexer.check_health.return_value = {"ollama": True}
-        mock_indexer.search = AsyncMock(return_value=[])
+        mock_search_api.return_value = []
         
         await run_main()
         
-        mock_indexer.search.assert_called_once_with(
+        mock_search_api.assert_called_once_with(
+            ANY,
             "TDD",
             limit=3,
             mode="hybrid",
             series=None,
-            published_only=True,
+            include_drafts=False,
             per_post_limit=None
         )
 
@@ -36,20 +35,19 @@ async def test_cli_subcommands_search_include_drafts():
          patch("chronicle.main.load_config", return_value={}), \
          patch("chronicle.main.setup_logging"), \
          patch("chronicle.main.LLMProvider.get_provider") as mock_provider, \
-         patch("chronicle.main.LibrarianIndexer") as mock_indexer_cls:
+         patch("chronicle.main.api.search_blog_api", new_callable=AsyncMock) as mock_search_api:
         
-        mock_indexer = mock_indexer_cls.return_value
-        mock_indexer.check_health.return_value = {"ollama": True}
-        mock_indexer.search = AsyncMock(return_value=[])
+        mock_search_api.return_value = []
         
         await run_main()
         
-        mock_indexer.search.assert_called_once_with(
+        mock_search_api.assert_called_once_with(
+            ANY,
             "TDD",
             limit=3,
             mode="hybrid",
             series=None,
-            published_only=False,
+            include_drafts=True,
             per_post_limit=None
         )
 
@@ -61,52 +59,36 @@ async def test_cli_subcommands_ledger_record():
          patch("chronicle.main.load_config", return_value={}), \
          patch("chronicle.main.setup_logging"), \
          patch("chronicle.main.LLMProvider.get_provider"), \
-         patch("chronicle.main.LibrarianIndexer") as mock_indexer_cls, \
-         patch("chronicle.main.SessionLedger") as mock_ledger_cls:
+         patch("chronicle.main.api.record_decision_api") as mock_record_api:
          
-        mock_indexer = mock_indexer_cls.return_value
-        mock_indexer.check_health.return_value = {"ollama": True}
-        mock_ledger = mock_ledger_cls.return_value
-        
         await run_main()
         
-        mock_ledger.record_decision.assert_called_once_with(
-            "Topic", "Decision", "Rationale", scope="global", series=None
+        mock_record_api.assert_called_once_with(
+            ANY,
+            "Topic",
+            "Decision",
+            "Rationale",
+            scope="global",
+            series=None
         )
 
 
 @pytest.mark.asyncio
 async def test_cli_subcommands_lint():
     test_args = ["chronicle", "lint", "draft.md"]
-    from pathlib import Path
-    
-    original_exists = Path.exists
-    original_is_file = Path.is_file
-    
-    def side_effect_exists(self):
-        if "draft.md" in str(self):
-            return True
-        return original_exists(self)
-        
-    def side_effect_is_file(self):
-        if "draft.md" in str(self):
-            return True
-        return original_is_file(self)
     
     with patch("sys.argv", test_args), \
          patch("chronicle.main.load_config", return_value={}), \
          patch("chronicle.main.setup_logging"), \
          patch("chronicle.main.LLMProvider.get_provider") as mock_provider, \
-         patch("chronicle.main.LibrarianIndexer") as mock_indexer_cls, \
-         patch.object(Path, "exists", side_effect_exists), \
-         patch.object(Path, "is_file", side_effect_is_file), \
-         patch("chronicle.src.linter.ProseLinter") as mock_linter_cls:
+         patch("chronicle.main.api.lint_files_api") as mock_lint_api:
          
-        mock_indexer = mock_indexer_cls.return_value
-        mock_indexer.check_health.return_value = {"ollama": True}
-        mock_linter = mock_linter_cls.return_value
-        mock_linter.lint_file.return_value = []
+        mock_lint_api.return_value = {}
         
         await run_main()
         
-        mock_linter.lint_file.assert_called_once_with(str(Path("draft.md").resolve()), include_drafts=True)
+        mock_lint_api.assert_called_once_with(
+            ANY,
+            "draft.md",
+            include_drafts=False
+        )

@@ -11,6 +11,7 @@ from chronicle.src.session_memory import SessionLedger
 from chronicle.src.providers.base import LLMProvider
 from chronicle.src.utils.logging import setup_logging
 from chronicle.src.utils.config import AppConfig
+from chronicle.src import api
 
 def load_config(config_path: str = None):
     """Loads configuration, searching current directory (.chronicle) then default path."""
@@ -197,12 +198,13 @@ async def run_main():
     elif args.command == "search":
         published_only = not args.include_drafts
         print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {published_only}, per-post-limit: {args.per_post_limit})...")
-        results = await indexer.search(
-            args.query, 
-            limit=args.limit, 
-            mode=args.mode, 
-            series=args.series, 
-            published_only=published_only,
+        results = await api.search_blog_api(
+            config,
+            args.query,
+            limit=args.limit,
+            mode=args.mode,
+            series=args.series,
+            include_drafts=args.include_drafts,
             per_post_limit=args.per_post_limit
         )
         if not results:
@@ -221,10 +223,8 @@ async def run_main():
                 if not args.series:
                     print("Error: --promises-only requires a specific --series name.")
                     return
-                from chronicle.src.series_manager import SeriesManager
-                manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
                 print(f"Synthesizing Series Ledger for '{args.series}'...")
-                series_ledger = await manager.get_series_ledger(args.series)
+                series_ledger = await api.get_series_ledger_api(config, args.series)
                 print(f"\n--- Series Ledger: {series_ledger.series_name} ---")
                 print(f"Posts Count: {series_ledger.posts_count}")
                 print(f"Arc Summary:\n{series_ledger.summary}")
@@ -236,10 +236,10 @@ async def run_main():
                     print("\n✅ No open narrative promises detected.")
             else:
                 print(f"\n--- Recent Design Decisions (Series: {args.series or 'All'}) ---")
-                print(ledger.get_decisions(series=args.series))
+                print(api.get_decisions_api(config, series=args.series))
                 
         elif args.ledger_command == "record":
-            ledger.record_decision(args.topic, args.decision, args.rationale, scope=args.scope, series=args.series)
+            api.record_decision_api(config, args.topic, args.decision, args.rationale, scope=args.scope, series=args.series)
             print(f"Decision recorded ({args.scope}): {args.topic}")
             
     elif args.command == "audit":
@@ -256,52 +256,31 @@ async def run_main():
             await run_audit(guardian, args.file_path)
             
     elif args.command == "lint":
-        from chronicle.src.linter import ProseLinter
-        linter = ProseLinter(config)
-        
         path_to_lint = args.file_path or config.content_root
         if not path_to_lint:
             print("Error: No file or directory specified to lint, and 'content_root' is not configured.")
             sys.exit(1)
             
-        path_to_lint = Path(path_to_lint).resolve()
-        if not path_to_lint.exists():
-            print(f"Error: Path does not exist: {path_to_lint}")
+        try:
+            lint_results = api.lint_files_api(config, path_to_lint, include_drafts=args.include_drafts)
+            
+            if not lint_results:
+                print(f"✅ Prose Lint PASS: All checked files are compliant.")
+            else:
+                total_errors = sum(sum(1 for i in issues if i.severity == "ERROR") for issues in lint_results.values())
+                total_warnings = sum(sum(1 for i in issues if i.severity == "WARNING") for issues in lint_results.values())
+                print(f"\n🚨 Prose Lint FAILED: Found {total_errors} error(s) and {total_warnings} warning(s) across {len(lint_results)} file(s):")
+                for filepath, issues in lint_results.items():
+                    rel_path = os.path.relpath(filepath, os.getcwd())
+                    print(f"\n{rel_path}:")
+                    for i in issues:
+                        line_str = f"Line {i.line}: " if i.line else ""
+                        print(f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}")
+                if total_errors > 0:
+                    sys.exit(1)
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
             sys.exit(1)
-
-        is_single_file = path_to_lint.is_file()
-        if is_single_file:
-            files_to_lint = [path_to_lint]
-        else:
-            files_to_lint = sorted([p for p in path_to_lint.glob("**/*.md") if p.name != "_index.md"])
-
-        print(f"Linting {len(files_to_lint)} file(s) under {os.path.relpath(path_to_lint, os.getcwd())}...")
-        
-        all_issues = {}
-        total_errors = 0
-        total_warnings = 0
-        
-        for p in files_to_lint:
-            # Always lint the file if it was explicitly specified; otherwise obey the --include-drafts flag
-            include_drafts_for_file = True if is_single_file else args.include_drafts
-            issues = linter.lint_file(str(p), include_drafts=include_drafts_for_file)
-            if issues:
-                all_issues[str(p)] = issues
-                total_errors += sum(1 for i in issues if i.severity == "ERROR")
-                total_warnings += sum(1 for i in issues if i.severity == "WARNING")
-
-        if not all_issues:
-            print(f"✅ Prose Lint PASS: All checked files are compliant.")
-        else:
-            print(f"\n🚨 Prose Lint FAILED: Found {total_errors} error(s) and {total_warnings} warning(s) across {len(all_issues)} file(s):")
-            for filepath, issues in all_issues.items():
-                rel_path = os.path.relpath(filepath, os.getcwd())
-                print(f"\n{rel_path}:")
-                for i in issues:
-                    line_str = f"Line {i.line}: " if i.line else ""
-                    print(f"  [{i.severity}] {i.category.upper()} | {line_str}{i.message}")
-            if total_errors > 0:
-                sys.exit(1)
             
     elif args.command == "constitution":
         await guardian.generate_initial_constitution()
