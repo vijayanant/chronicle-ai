@@ -47,5 +47,9 @@ graph TD
 - **Regional:** SessionLedger filtered by --series (Thematic Consistency).
 - **Local:** SessionLedger tracked by session (Drafting Intent).
 
+### 3.5. Link Topology & Semantic Recommendations
+- **Deterministic Graph Modeling:** Parses both standard Markdown links and Hugo template shortcodes (`ref`/`relref`), translating them into a unified directed graph mapping link topology. Identifies orphan pages and flags broken internal target paths.
+- **Link Recommendation Engine:** Performs semantic similarity lookups on local vector indexes for drafts, automatically filtering out the draft itself and pre-existing graph links to suggest fresh, non-obvious internal cross-linking opportunities.
+
 ## 4. Security & Privacy
 - **Sovereign Reasoning:** Private logic, history, and mandates remain on local hardware.

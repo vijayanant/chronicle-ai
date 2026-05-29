@@ -87,6 +87,10 @@ Chronicle AI is designed for manual, proactive invocation by the author to verif
 | `chronicle history "concept"`| Retrieve historical, first-principles definition of a concept. |
 | `chronicle watch` | Watch the content root for real-time automatic re-indexing. |
 | `chronicle mcp` | Start the Model Context Protocol (MCP) server for IDE integration. |
+| `chronicle graph` | Analyze internal links and print topological graph metrics, identifying orphans and broken links (published posts only). |
+| `chronicle graph --include-drafts` | Analyze internal link graph including draft posts. |
+| `chronicle suggest-links <file>` | Suggest semantically relevant internal posts to link to from a targeted draft file, excluding existing links. |
+| `chronicle suggest-links <file> --limit N` | Request a specific number of link suggestions. |
 
 ---
 
