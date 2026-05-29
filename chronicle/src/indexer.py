@@ -6,7 +6,7 @@ import pandas as pd
 import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, date as dt_date
 
 from .models import DocumentChunk, SearchResult
 from .providers.base import LLMProvider
@@ -102,6 +102,8 @@ class LibrarianIndexer:
         date = None
         if isinstance(raw_date, datetime):
             date = raw_date
+        elif isinstance(raw_date, dt_date):
+            date = datetime.combine(raw_date, datetime.min.time())
         elif isinstance(raw_date, str):
             try:
                 date = datetime.fromisoformat(raw_date)

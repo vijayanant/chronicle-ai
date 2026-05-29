@@ -10,6 +10,9 @@ class LLMProvider(ABC):
         if name.lower() == "mlx":
             from .mlx import MLXProvider
             return MLXProvider()
+        elif name.lower() in ("openai", "llamacpp"):
+            from .openai import OpenAIProvider
+            return OpenAIProvider()
         else:
             from .ollama import OllamaProvider
             return OllamaProvider()

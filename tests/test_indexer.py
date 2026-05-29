@@ -1,4 +1,6 @@
 import pytest
+import datetime
+from unittest.mock import AsyncMock, MagicMock
 from chronicle.src.indexer import LibrarianIndexer
 from chronicle.src.utils.chunker import Chunker
 from chronicle.src.utils.config import AppConfig
@@ -40,3 +42,22 @@ def test_calculate_hash_consistency(indexer_with_config):
     # Assert
     assert hash1 == hash2
     assert hash1 == "1604d02cf3ce7a673838d7e644fa9f4e7d0490844b4e266fe117740afb9bf228"
+
+@pytest.mark.asyncio
+async def test_date_normalization_from_date_object(tmp_path):
+    # Create mock temp blog file with date frontmatter
+    blog_root = tmp_path / "blog"
+    blog_root.mkdir()
+    test_file = blog_root / "test-date.md"
+    test_file.write_text("---\ntitle: Date Test\ndate: 2026-01-25\n---\nHello date normalization.")
+
+    config = AppConfig(content_root=str(blog_root), db_path=str(tmp_path / "db"))
+    indexer = LibrarianIndexer(config=config)
+    indexer.provider = MagicMock()
+    indexer.provider.embed_async = AsyncMock(return_value=[0.1, 0.2, 0.3])
+
+    chunks = await indexer.process_file(str(test_file))
+    assert len(chunks) > 0
+    # Verify that the parsed date has been combined with midnight to become a datetime.datetime
+    assert isinstance(chunks[0]["date"], datetime.datetime)
+    assert chunks[0]["date"] == datetime.datetime(2026, 1, 25, 0, 0)

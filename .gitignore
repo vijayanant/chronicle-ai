@@ -166,3 +166,6 @@ chronicle/data/chronicle.log
 chronicle/data/session_ledger.json
 chronicle/data/constitution.md
 chronicle/data/library/catalog.json
+
+# Local Chronicle state directory
+.chronicle/
