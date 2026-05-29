@@ -91,38 +91,66 @@ async def run_audit(guardian, audit_path):
 async def run_main():
     if "--init" in sys.argv:
         init_workspace()
-        return
-
     # Phase 1: Load Configuration
     config_data = load_config()
     config = AppConfig(**config_data) if config_data else AppConfig()
     
     parser = argparse.ArgumentParser(description="Chronicle AI: The Narrative Linter & Prose CI/CD for Technical Content")
-    parser.add_argument("--content-root", default=config.content_root, help="Root directory of blog posts")
+    parser.add_argument("--content-root", default=config.content_root, help="Root directory of content files")
     parser.add_argument("--db-path", default=config.db_path, help="Path to LanceDB")
-    parser.add_argument("--index", action="store_true", help="Index the blog directory")
-    parser.add_argument("--sync", action="store_true", help="Perform a differential sync of the index")
-    parser.add_argument("--query", help="Search the index for a concept or phrase")
-    parser.add_argument("--limit", type=int, default=config.search_limit, help="Number of search results to return")
-    parser.add_argument("--per-post-limit", type=int, default=config.per_post_limit, help="Max chunks from the same post to return")
-    parser.add_argument("--mode", default=config.search_mode, choices=["hybrid", "vector", "fts"], help="Search mode")
-    parser.add_argument("--series", help="Name of the series for scoping or filtering")
-    parser.add_argument("--published-only", action="store_true", help="Filter for published posts only (ignore drafts)")
-
-    parser.add_argument("--constitution", action="store_true", help="Generate or update the Technical Constitution")
-
-    parser.add_argument("--audit", help="Path to a draft file to audit")
-    parser.add_argument("--dossier", help="Generate a bundled context dossier for cloud auditing")
-    parser.add_argument("--history", help="Get a foundational historical briefing for a concept")
-    parser.add_argument("--watch", action="store_true", help="Watch the blog root for changes")
-    parser.add_argument("--record", nargs=3, metavar=('TOPIC', 'DECISION', 'RATIONALE'), help="Record a design decision")
-    parser.add_argument("--scope", default="post", choices=["global", "series", "post"], help="Scope of the decision")
-    parser.add_argument("--decisions", action="store_true", help="List recent design decisions")
-    parser.add_argument("--series-ledger", action="store_true", help="Generate a narrative ledger for the specified series (requires --series)")
-    parser.add_argument("--mcp", action="store_true", help="Start the MCP server for interoperability")
-    parser.add_argument("--status", action="store_true", help="Check the health of Chronicle components")
-    parser.add_argument("--init", action="store_true", help="Initialize a new workspace")
     
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommand to run")
+    
+    # status subcommand
+    subparsers.add_parser("status", help="Check the health of Chronicle components")
+    
+    # index subcommand
+    index_parser = subparsers.add_parser("index", help="Index content directory")
+    index_parser.add_argument("--rebuild", action="store_true", help="Perform a full rebuild instead of a sync")
+    
+    # search subcommand
+    search_parser = subparsers.add_parser("search", help="Search the index for a concept or phrase")
+    search_parser.add_argument("query", help="Query string")
+    search_parser.add_argument("--limit", type=int, default=config.search_limit, help="Number of search results to return")
+    search_parser.add_argument("--per-post-limit", type=int, default=config.per_post_limit, help="Max chunks from the same post to return")
+    search_parser.add_argument("--mode", default=config.search_mode, choices=["hybrid", "vector", "fts"], help="Search mode")
+    search_parser.add_argument("--series", help="Name of the series for scoping or filtering")
+    search_parser.add_argument("--published-only", action="store_true", help="Filter for published posts only")
+
+    # ledger subcommand group
+    ledger_parser = subparsers.add_parser("ledger", help="Manage design decisions and narrative promises")
+    ledger_subparsers = ledger_parser.add_subparsers(dest="ledger_command", required=True)
+    
+    show_parser = ledger_subparsers.add_parser("show", help="Show decisions and promises")
+    show_parser.add_argument("--series", help="Filter by series name")
+    show_parser.add_argument("--promises-only", action="store_true", help="Synthesize series narrative promises instead of listing decisions")
+    
+    record_parser = ledger_subparsers.add_parser("record", help="Record a design decision")
+    record_parser.add_argument("topic", help="The topic of the decision")
+    record_parser.add_argument("decision", help="The decision chosen")
+    record_parser.add_argument("rationale", help="The rationale for the choice")
+    record_parser.add_argument("--scope", default="post", choices=["global", "series", "post"], help="Scope of the decision")
+    record_parser.add_argument("--series", help="Filter by series name")
+
+    # audit subcommand
+    audit_parser = subparsers.add_parser("audit", help="Audit a draft file")
+    audit_parser.add_argument("file_path", help="Path to draft file to audit")
+    audit_parser.add_argument("--dossier", action="store_true", help="Generate bundled context dossier instead of running local audit")
+    
+    # constitution subcommand
+    subparsers.add_parser("constitution", help="Generate or update the Technical Constitution")
+    
+    # history subcommand
+    history_parser = subparsers.add_parser("history", help="Get historical briefing")
+    history_parser.add_argument("concept", help="Concept to research")
+    
+    # watch subcommand
+    subparsers.add_parser("watch", help="Watch content root for changes")
+    
+    # mcp subcommand
+    subparsers.add_parser("mcp", help="Start the MCP server")
+
+    # Parse arguments
     args = parser.parse_args()
     config.content_root = args.content_root
     config.db_path = args.db_path
@@ -131,7 +159,7 @@ async def run_main():
     provider = LLMProvider.get_provider(config.provider)
     indexer = LibrarianIndexer(config=config, provider=provider)
     
-    if args.status:
+    if args.command == "status":
         print("\n--- Chronicle Health Report ---")
         health = indexer.check_health()
         print(f"📡 Provider: {config.provider.upper()}")
@@ -149,74 +177,17 @@ async def run_main():
     guardian = GuardianAgent(indexer, config=config, provider=provider)
     ledger = SessionLedger(ledger_path=config.ledger_path)
     
-    if args.dossier:
-        if not os.path.exists(args.dossier):
-            print(f"Error: File {args.dossier} does not exist.")
-            sys.exit(1)
-        with open(args.dossier, "r") as f:
-            draft_text = f.read()
-        dossier = await guardian.council.get_audit_dossier(draft_text, ledger)
-        import json
-        print(json.dumps(dossier, indent=2))
-        return
-
-    if args.index:
-        print(f"Indexing directory: {config.content_root}...")
-        await indexer.index_directory(config.content_root)
-        print("Indexing complete.")
-        
-    if args.sync:
-        print(f"Syncing directory: {config.content_root}...")
-        await indexer.sync_directory(config.content_root)
-        print("Sync complete.")
-        
-    if args.constitution:
-        await guardian.generate_initial_constitution()
-
-    if args.history:
-        print(f"Systems Historian: Briefing on '{args.history}'...")
-        brief = await guardian.council.historian.find_historical_context_async(args.history)
-        print("\n--- Foundational Briefing ---")
-        print(brief)
-
-    if args.record:
-        ledger.record_decision(args.record[0], args.record[1], args.record[2], scope=args.scope, series=args.series)
-        print(f"Decision recorded ({args.scope}): {args.record[0]}")
-
-    if args.decisions:
-        print(f"\n--- Recent Design Decisions (Series: {args.series or 'All'}) ---")
-        print(ledger.get_decisions(series=args.series))
-
-    if args.series_ledger:
-        if not args.series:
-            print("Error: --series-ledger requires a specific --series name.")
-            return
-        from chronicle.src.series_manager import SeriesManager
-        manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
-        print(f"Synthesizing Series Ledger for '{args.series}'...")
-        series_ledger = await manager.get_series_ledger(args.series)
-        print(f"\n--- Series Ledger: {series_ledger.series_name} ---")
-        print(f"Posts Count: {series_ledger.posts_count}")
-        print(f"Arc Summary:\n{series_ledger.summary}")
-        if series_ledger.open_promises:
-            print("\n--- Open Narrative Promises ---")
-            for p in series_ledger.open_promises:
-                print(f"- From '{p.source_post}': {p.promise_text} (Topic: {p.topic})")
+    if args.command == "index":
+        if args.rebuild:
+            print(f"Indexing directory (rebuild): {config.content_root}...")
+            await indexer.index_directory(config.content_root)
+            print("Indexing complete.")
         else:
-            print("\n✅ No open narrative promises detected.")
-
-    if args.audit:
-        await run_audit(guardian, args.audit)
-
-    if args.watch:
-        from chronicle.src.observer import start_watching
-        await start_watching(config.content_root, indexer, guardian)
-
-    if args.mcp:
-        from chronicle.src.mcp_server import main as run_mcp
-        await run_mcp(content_root=config.content_root, db_path=config.db_path)
-
-    if args.query:
+            print(f"Syncing directory (differential): {config.content_root}...")
+            await indexer.sync_directory(config.content_root)
+            print("Sync complete.")
+            
+    elif args.command == "search":
         print(f"Searching for: '{args.query}' (mode: {args.mode}, series: {args.series or 'Any'}, published: {args.published_only}, per-post-limit: {args.per_post_limit})...")
         results = await indexer.search(
             args.query, 
@@ -226,7 +197,6 @@ async def run_main():
             published_only=args.published_only,
             per_post_limit=args.per_post_limit
         )
-        
         if not results:
             print("No relevant results found.")
         else:
@@ -236,9 +206,63 @@ async def run_main():
                 print(f"Title: {res.chunk.title}")
                 print(f"Snippet: {res.chunk.text[:200]}...")
                 print(f"Score ({res.mode}): {res.score:.4f}")
-
-    if len(sys.argv) == 1:
-        parser.print_help()
+                
+    elif args.command == "ledger":
+        if args.ledger_command == "show":
+            if args.promises_only:
+                if not args.series:
+                    print("Error: --promises-only requires a specific --series name.")
+                    return
+                from chronicle.src.series_manager import SeriesManager
+                manager = SeriesManager(indexer, provider=provider, model_name=config.reasoning_model)
+                print(f"Synthesizing Series Ledger for '{args.series}'...")
+                series_ledger = await manager.get_series_ledger(args.series)
+                print(f"\n--- Series Ledger: {series_ledger.series_name} ---")
+                print(f"Posts Count: {series_ledger.posts_count}")
+                print(f"Arc Summary:\n{series_ledger.summary}")
+                if series_ledger.open_promises:
+                    print("\n--- Open Narrative Promises ---")
+                    for p in series_ledger.open_promises:
+                        print(f"- From '{p.source_post}': {p.promise_text} (Topic: {p.topic})")
+                else:
+                    print("\n✅ No open narrative promises detected.")
+            else:
+                print(f"\n--- Recent Design Decisions (Series: {args.series or 'All'}) ---")
+                print(ledger.get_decisions(series=args.series))
+                
+        elif args.ledger_command == "record":
+            ledger.record_decision(args.topic, args.decision, args.rationale, scope=args.scope, series=args.series)
+            print(f"Decision recorded ({args.scope}): {args.topic}")
+            
+    elif args.command == "audit":
+        if args.dossier:
+            if not os.path.exists(args.file_path):
+                print(f"Error: File {args.file_path} does not exist.")
+                sys.exit(1)
+            with open(args.file_path, "r") as f:
+                draft_text = f.read()
+            dossier = await guardian.council.get_audit_dossier(draft_text, ledger)
+            import json
+            print(json.dumps(dossier, indent=2))
+        else:
+            await run_audit(guardian, args.file_path)
+            
+    elif args.command == "constitution":
+        await guardian.generate_initial_constitution()
+        
+    elif args.command == "history":
+        print(f"Systems Historian: Briefing on '{args.concept}'...")
+        brief = await guardian.council.historian.find_historical_context_async(args.concept)
+        print("\n--- Foundational Briefing ---")
+        print(brief)
+        
+    elif args.command == "watch":
+        from chronicle.src.observer import start_watching
+        await start_watching(config.content_root, indexer, guardian)
+        
+    elif args.command == "mcp":
+        from chronicle.src.mcp_server import main as run_mcp
+        await run_mcp(content_root=config.content_root, db_path=config.db_path)
 
 def main():
     asyncio.run(run_main())
