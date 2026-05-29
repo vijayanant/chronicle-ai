@@ -67,7 +67,7 @@ class LibrarianIndexer:
 
     def check_health(self) -> Dict[str, Any]:
         return {
-            "ollama": self.provider.check_health(),
+            self.config.provider: self.provider.check_health(),
             "database": self.store._table_exists(),
             "content_root": os.path.exists(self.config.content_root)
         }

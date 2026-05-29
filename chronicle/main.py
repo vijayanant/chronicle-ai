@@ -186,13 +186,20 @@ async def run_main():
         print(f"📡 Provider: {config.provider.upper()}")
         for component, state in health.items():
             status_symbol = "✅" if state else "❌"
-            print(f"{status_symbol} {component.capitalize()}: {'Ready' if state else 'FAILED'}")
+            display_name = component.capitalize()
+            if component.lower() == "llamacpp":
+                display_name = "Llama.cpp"
+            elif component.lower() == "openai":
+                display_name = "OpenAI"
+            print(f"{status_symbol} {display_name}: {'Ready' if state else 'FAILED'}")
         print(f"✅ Configuration: Loaded")
         print(f"✅ Technical Constitution: {'Present' if os.path.exists(config.constitution_path) else 'Missing'}")
         return
 
-    if not indexer.check_health()["ollama"] and config.provider == "ollama":
-        print("Error: Ollama service is not reachable. Please start Ollama and try again.")
+    # Ensure active provider is reachable
+    health = indexer.check_health()
+    if not health.get(config.provider, False):
+        print(f"Error: {config.provider.capitalize()} service is not reachable. Please check your setup and try again.")
         sys.exit(1)
         
     guardian = GuardianAgent(indexer, config=config, provider=provider)
