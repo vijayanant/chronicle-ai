@@ -125,9 +125,25 @@ class SeriesManager:
         
         # Build the series progression overview
         progression_lines = []
+        handoff_mode = getattr(self.indexer.config, "handoff_mode", "hybrid").lower()
+        
         for i, title in enumerate(sorted_posts, 1):
-            content_summary = " ".join(posts_data[title]["chunks"][:3]) # First few chunks
-            progression_lines.append(f"Post {i}: '{title}'\nContent Abstract: {content_summary[:300]}...")
+            chunks = posts_data[title]["chunks"]
+            
+            if handoff_mode == "full":
+                full_content = "\n".join(chunks)
+                progression_lines.append(f"Post {i}: '{title}'\nFULL CONTENT:\n{full_content}")
+            elif handoff_mode == "abstract":
+                content_summary = " ".join(chunks[:3])
+                progression_lines.append(f"Post {i}: '{title}'\nContent Abstract: {content_summary[:300]}...")
+            else:  # hybrid
+                is_last_two = (i >= len(sorted_posts) - 1)
+                if is_last_two:
+                    full_content = "\n".join(chunks)
+                    progression_lines.append(f"Post {i}: '{title}'\nFULL CONTENT:\n{full_content}")
+                else:
+                    content_summary = " ".join(chunks[:3])
+                    progression_lines.append(f"Post {i}: '{title}'\nContent Abstract: {content_summary[:300]}...")
         
         progression_text = "\n\n".join(progression_lines)
         

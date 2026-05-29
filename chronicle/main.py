@@ -60,7 +60,8 @@ def init_workspace():
         "reasoning_model": "deepseek-r1:14b",
         "search_limit": 5,
         "search_mode": "hybrid",
-        "rrf_k": 60
+        "rrf_k": 60,
+        "handoff_mode": "hybrid"
     }
     with open(config_path, "w") as f:
         yaml.dump(default_config, f, default_flow_style=False)

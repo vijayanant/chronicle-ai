@@ -29,6 +29,7 @@ class AppConfig(BaseModel):
     
     chunk_size: int = Field(1200)
     chunk_overlap: int = Field(200)
+    handoff_mode: str = Field("hybrid")
 
     @classmethod
     def from_yaml(cls, path: str = ".chronicle/config.yaml") -> 'AppConfig':
